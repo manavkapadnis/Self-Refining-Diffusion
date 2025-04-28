@@ -1,0 +1,2 @@
+_target_: src.reward_models.clip_reward.CLIPReward
+model_name: "openai/clip-vit-base-patch32"
