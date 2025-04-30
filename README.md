@@ -1,4 +1,5 @@
-# Self-refining Diffusion (TPDM)
+# Self-Refining Diffusion: Joint Parameter-Efficient Optimization of Models and Adaptive Schedulers for Image Generation
+## Contributors: Dhruv Gupta, Lawanya Baghel, Manav Nitin Kapadnis 
 
 This repository contains the implementation of the Self-refining Time Prediction Diffusion Model, a novel approach for adaptive noise scheduling in diffusion models.
 
