@@ -1,75 +1,137 @@
-<div align="center">
+# Self-refining Diffusion (TPDM)
 
-<h1>Schedule On the Fly: Diffusion Time Prediction for Faster and Better Image Generation</h1>
+This repository contains the implementation of the Self-refining Time Prediction Diffusion Model, a novel approach for adaptive noise scheduling in diffusion models.
 
-<p align="center">
-<a href="https://arxiv.org/abs/2412.01243"><img src="https://img.shields.io/badge/arXiv-2412.01243-b31b1b.svg" alt="ArXiv"></a>
-<a href="https://huggingface.co/MAPLE-WestLake-AIGC/TPDM"><img src="https://img.shields.io/badge/Checkpoint-Huggingface-yellow" alt="Checkpoint"></a>
-</p>
+## Directory Structure
 
-[MAPLE Lab, Westlake University](https://maple.lab.westlake.edu.cn/)
-
-</div>
-
-![denosing process](./assets/denosing.png)
-
-- In this paper, we view denoising steps as a kind of chain-of-thought in image generation, and introduce the Time Prediction Diffusion Model (TPDM) that adaptively predicts the next diffusion time to denoise images in the reverse diffusion process.
-TPDM adjusts the noise schedule for each prompt individually. By aligning the final outputs of the denoising process with human preferences, TPDM can reduce the number of inference steps by almost 50% while still keeping image quality.
-
-- Our paper is accepted at CVPR 2025.
-
-
-## Visualization of the Predicted Schedules
-![examples](./assets/examples.png)
-
-## Getting start for inference
-### Download SD3 Pretrained Model
-
-```shell
-mkdir models
-pip install -r requirements.txt
-
-# if you are in mainland china, you can use the mirror to accelerate download
-# export HF_ENDPOINT=https://hf-mirror.com
-huggingface-cli download stabilityai/stable-diffusion-3-medium --local-dir models/stabilityai/stable-diffusion-3-medium
+```
+├── configs/
+│   ├── datasets/                  # Dataset configuration files
+│   │   ├── example_json_dataset.yaml
+│   │   ├── hf_json_list.yaml 
+│   │   ├── hf_json_list_only_tpdm_lora.yaml
+│   │   └── json_prompt_collator.yaml
+│   ├── deepspeed/                 # DeepSpeed configuration files
+│   │   ├── deepspeed_stage_0.json
+│   │   ├── deepspeed_stage_2.json
+│   │   ├── deepspeed_stage_2_offload.json
+│   │   ├── deepspeed_stage_3.json
+│   │   └── deepspeed_stage_3_offload.json
+│   ├── fsdp/                      # FSDP configuration files
+│   │   └── fsdp_sd3.json
+│   └── models/                    # Model configuration files
+│       ├── clip_reward.yaml
+│       ├── image_reward.yaml
+│       └── sd3_pnt.yaml
+├── src/
+│   ├── data/                      # Data loading and processing
+│   │   ├── data_collator.py       # Collation functions for training data
+│   │   ├── dummy_dataset.py       # Simple dataset for testing
+│   │   ├── hf_dataset.py          # HuggingFace dataset loading utilities
+│   │   └── json_dataset.py        # JSON dataset loading utilities
+│   ├── models/                    # Model implementations
+│   │   ├── lora_adapter.py        # LoRA adaptation for efficient fine-tuning
+│   │   ├── model_utilis.py        # Common model utilities
+│   │   ├── reference_distributions.py # Reference distribution implementations
+│   │   └── stable_diffusion_3/    # SD3 model implementations 
+│   │       ├── modeling_sd3_pnt.py # SD3 with predict-next-timestep capabilities
+│   │       └── transformer_sd3.py  # SD3 transformer implementation
+│   ├── reward_models/             # Reward models for training
+│   │   ├── ImageReward/           # Image quality reward model
+│   │   ├── PickScore/             # Pick-score reward model
+│   │   ├── aesthetic_predictor_v2/ # Aesthetic prediction model v2
+│   │   ├── aesthetic_predictor_v2_5/ # Aesthetic prediction model v2.5
+│   │   └── clip_reward.py         # CLIP-based reward model
+│   └── train/                     # Training utilities
+│       ├── callbacks.py           # Training callbacks for logging and visualization
+│       ├── config.py              # Training configurations
+│       ├── rloo_trainer.py        # Reinforcement learning with online optimization trainer
+│       └── train_utilis.py        # Training utilities
+├── gradio_sd3_inference.py        # Gradio UI for SD3 model inference
+├── gradio_self_refine_inference.py # Gradio UI for self-refining model inference
+├── main_diff_lora_tpdm_only_trainer.py # Main script for TPDM-only LoRA training
+├── main_diff_rloo_trainer.py      # Main script for RLOO training
+├── main_diff_self_refine_trainer.py # Main script for self-refining model training
+├── non_server_scripts/            # Scripts for local training
+│   ├── launch_sd3_self_refine_train.sh # Launch self-refine training locally
+│   └── launch_sd3_train.sh        # Launch SD3 training locally
+├── pyproject.toml                 # Project configuration
+├── requirements.txt               # Project dependencies
+├── run_train_diffusion_lora_only.sh # Script to train diffusion-only LoRA
+├── run_train_self_refine.sh      # Script to train self-refine model
+└── run_train_tpdm_lora_only.sh   # Script to train TPDM-only LoRA
 ```
 
-### Download TPM Checkpoints
+## Models
 
-```shell
-huggingface-cli download MAPLE-WestLake-AIGC/TPDM --local-dir checkpoint
-# subdir sd3 is stable diffusion 3 checkpoint
+TPDM introduces a novel approach to diffusion model inference by adaptively determining the noise schedule on-the-fly. The key components include:
+
+1. **Time Prediction Module (TPM)**: Predicts the optimal next noise level based on current latent features
+2. **LoRA Adaptation**: Efficient fine-tuning of specific model components
+3. **Self-Refinement**: Improves image quality through iterative refinement
+
+## Training Variants
+
+### 1. Standard TPDM Training
+
+```bash
+# Run standard TPDM training
+bash non_server_scripts/launch_sd3_train.sh
 ```
 
-### Launch Gradio Web For Inference
+This trains the base TPDM model with reinforcement learning from online optimization (RLOO) to learn the optimal noise scheduling policy.
 
-```shell
+### 2. TPDM-only LoRA Training
+
+```bash
+# Run TPDM-only LoRA training (only applies LoRA to the time prediction module)
+bash run_train_tpdm_lora_only.sh
+```
+
+This training only applies LoRA to the Time Prediction Module, keeping the diffusion model weights frozen.
+
+### 3. Diffusion-only LoRA Training
+
+```bash
+# Run diffusion-only LoRA training (only applies LoRA to the diffusion transformer)
+bash run_train_diffusion_lora_only.sh
+```
+
+This training only applies LoRA to the diffusion transformer, keeping the time prediction module weights frozen.
+
+### 4. Self-Refine LoRA Training
+
+```bash
+# Run self-refine LoRA training (applies LoRA to both TPDM and diffusion model)
+bash run_train_self_refine.sh
+```
+
+This training applies LoRA to both the Time Prediction Module and the diffusion transformer, and incorporates a self-refinement mechanism using CLIP-based alignment scores.
+
+## Inference
+
+You can run inference using the provided Gradio interfaces:
+
+```bash
+# For standard SD3 inference
 python gradio_sd3_inference.py
+
+# For self-refine model inference
+python gradio_self_refine_inference.py
 ```
 
-## Getting start for training
+## Requirements
 
-If you want to train TPDM, you should prepare prompts and organize it like exmaple/example.jsonl.
+Install the required dependencies:
 
-Original datasets we used can be download in [COCO](https://cocodataset.org/#home), [COYO-11M](https://huggingface.co/datasets/CaptionEmporium/coyo-hd-11m-llavanext) and [Laion-Art](https://huggingface.co/datasets/laion/laion-art)
-
-```shell
-huggingface-cli download --resume-download THUDM/ImageReward --local-dir models/THUDM/ImageReward
-bash scripts/launch_sd3_train.sh
+```bash
+pip install -r requirements.txt
 ```
 
-## Acknowledgement
-Thanks to huggingface team for open-sourcing the [trl](https://github.com/huggingface/trl) and [diffusers](https://github.com/huggingface/diffusers) library, which part of our code is based on.
+## Configuration
 
-## Citation
-If you find our paper or code useful, wish you can cite our paper.
-```
-@misc{ye2025scheduleflydiffusiontime,
-      title     = {Schedule On the Fly: Diffusion Time Prediction for Faster and Better Image Generation}, 
-      author    = {Zilyu Ye and Zhiyang Chen and Tiancheng Li and Zemin Huang and Weijian Luo and Guo-Jun Qi},
-      booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-      month     = {June},
-      year      = {2025},
-      url       = {https://arxiv.org/abs/2412.01243}, 
-}
-```
+Training can be customized through the configuration files in the `configs/` directory:
+
+- Dataset configurations in `configs/datasets/`
+- DeepSpeed configurations in `configs/deepspeed/`
+- Model configurations in `configs/models/`
